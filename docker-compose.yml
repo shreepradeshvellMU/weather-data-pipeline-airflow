@@ -1,0 +1,38 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: weather
+      MYSQL_USER: weather
+      MYSQL_PASSWORD: weather
+    ports: ["3307:3306"]
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      retries: 20
+
+  airflow:
+    build: .
+    depends_on:
+      mysql: {condition: service_healthy}
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      MYSQL_URL: mysql+pymysql://weather:weather@mysql:3306/weather
+      DATA_DIR: /opt/airflow/data
+    ports: ["8080:8080"]
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./sql:/opt/airflow/sql
+      - ./data:/opt/airflow/data
+    command: >
+      bash -c "airflow db migrate &&
+      airflow users create --username admin --password admin --firstname a --lastname b
+      --role Admin --email admin@example.com;
+      airflow scheduler & exec airflow webserver"
+
+volumes:
+  mysql_data:
